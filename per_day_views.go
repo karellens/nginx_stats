@@ -7,13 +7,17 @@ import (
     "regexp"
     "strings"
     "encoding/json"
+    "time"
+    "flag"
 )
 
 
 func main() {
-    filename := "geely2/storage/logs/nginx-access.log"
+    sourceFilePtr := flag.String("source", "nginx-access.log", "source nginx log file")
+    destFilePtr := flag.String("destination", "stats.json", "destination json results file")
+    flag.Parse()
 
-    file, _ := ioutil.ReadFile(filename)
+    file, _ := ioutil.ReadFile(*sourceFilePtr)
 
     buf := bytes.NewBuffer(file)
 
@@ -27,7 +31,7 @@ func main() {
             }
         }
 
-        re := regexp.MustCompile(`(?P<ipaddress>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(?P<dateandtime>\d{2}\/[A-Za-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] (("(GET|POST|HEAD) )(?P<url>.+) (HTTP\/\d\.\d")) (?P<statuscode>\d{3}) (?P<bytessent>\d+) (["](?P<refferer>(\-)|(.*))["]) (["](?P<useragent>.+)["])`)
+        re := regexp.MustCompile(`(?P<ipaddress>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(?P<dateandtime>\d{2}\/[A-Za-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] (("(?P<method>GET|POST|HEAD) )(?P<url>.+) (HTTP\/\d\.\d")) (?P<statuscode>\d{3}) (?P<bytessent>\d+) (["](?P<refferer>(\-)|(.*))["]) (["](?P<useragent>.+)["])`)
         match := re.FindStringSubmatch(line)
         matches := make(map[string]string)
         for i, name := range re.SubexpNames() {
@@ -39,8 +43,8 @@ func main() {
         date := strings.Split(matches["dateandtime"], ":")[0]
 
         // except insignificant requests
-        var re_is = regexp.MustCompile(`\.woff|\.ttf|\.eot|\.svg|.ico|\.png|\.jpg|\.jpeg|\.gif|\.mp4|\.css\.map|\.js\.map|\.js|\.css|get\-file\?id|robots\.txt`)
-        if !re_is.MatchString(matches["url"]) {
+        var re_is = regexp.MustCompile(`\.woff|\.ttf|\.eot|\.svg|.ico|\.png|\.jpg|\.jpeg|\.gif|\.mp4|\.css\.map|\.js\.map|\.js|\.css|get\-file\?id|robots\.txt|\/admin`)
+        if matches["method"]=="GET" && !re_is.MatchString(matches["url"]) {
             counter[date+"-"+matches["ipaddress"]]++
         }
     }
@@ -48,18 +52,20 @@ func main() {
     results := make(map[string]map[string]int)
     for k, v := range counter {
         date_ip := strings.Split(k, "-")
-        date, ip := date_ip[0], date_ip[1]
+        date_str, ip := date_ip[0], date_ip[1]
+        date, _ := time.Parse("02/Jan/2006", date_str)
+        date_str = date.Format("2006-01-02")
 
-        if _, ok := results[date]; ok {
-            results[date][ip] = v
+        if _, ok := results[date_str]; ok {
+            results[date_str][ip] = v
         } else {
             temp := make(map[string]int)
             temp[ip] = v
-            results[date] = temp
+            results[date_str] = temp
         }
     }
 
     output, _ := json.Marshal(results)
 
-    ioutil.WriteFile("stats.json", output, 0644)
+    ioutil.WriteFile(*destFilePtr, output, 0644)
 }
