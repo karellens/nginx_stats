@@ -1,5 +1,5 @@
 # Nginx stats parsers
 
 ```bash
-go build
+go build <utility>
 ```
