@@ -21,7 +21,7 @@ func main() {
 
     buf := bytes.NewBuffer(file)
 
-    counter := make( map[string]int )
+    container := make( map[string]map[string]int )
 
     for {
         line, err := buf.ReadString('\n')
@@ -40,32 +40,24 @@ func main() {
             }
         }
 
-        date := strings.Split(matches["dateandtime"], ":")[0]
-
         // except insignificant requests
         var re_is = regexp.MustCompile(`\.woff|\.ttf|\.eot|\.svg|.ico|\.png|\.jpg|\.jpeg|\.gif|\.mp4|\.css\.map|\.js\.map|\.js|\.css|get\-file\?id|robots\.txt|\/admin`)
         if matches["method"]=="GET" && !re_is.MatchString(matches["url"]) {
-            counter[date+">>>"+matches["url"]]++
+            date_str := strings.Split(matches["dateandtime"], ":")[0]
+            date, _ := time.Parse("02/Jan/2006", date_str)
+            date_str = date.Format("2006-01-02")
+            
+            if _, ok := container[date_str]; ok {
+                container[date_str][matches["url"]]++
+            } else {
+                temp := make(map[string]int)
+                temp[matches["url"]]++
+                container[date_str] = temp
+            }
         }
     }
 
-    results := make(map[string]map[string]int)
-    for k, v := range counter {
-        date_uri := strings.Split(k, ">>>")
-        date_str, uri := date_uri[0], date_uri[1]
-        date, _ := time.Parse("02/Jan/2006", date_str)
-        date_str = date.Format("2006-01-02")
-
-        if _, ok := results[date_str]; ok {
-            results[date_str][uri] = v
-        } else {
-            temp := make(map[string]int)
-            temp[uri] = v
-            results[date_str] = temp
-        }
-    }
-
-    output, _ := json.Marshal(results)
+    output, _ := json.Marshal(container)
 
     ioutil.WriteFile(*destFilePtr, output, 0644)
 }
