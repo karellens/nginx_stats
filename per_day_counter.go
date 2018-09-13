@@ -40,10 +40,10 @@ func main() {
 	// You can combine the above fields with `+` to calculate the number of unique entries
 	sourceFilePtr := flag.String("source", "nginx-access.log", "source nginx log file")
 	destFilePtr := flag.String("destination", "urls.json", "destination json results file contains grouped top locations")
-	//pretty := flag.Bool("pretty", False, "Pretty JSON output")
-	retrieve := flag.String("get", "", "what fields to retrieve")
+	prettyPtr := flag.Bool("pretty", false, "Pretty JSON output")
+	retrievePtr := flag.String("get", "", "what fields to retrieve")
 	flag.Parse()
-	retrieveFields := strings.Split(*retrieve, " ")
+	retrieveFields := strings.Split(*retrievePtr, " ")
 
 	file, _ := ioutil.ReadFile(*sourceFilePtr)
 	buf := bytes.NewBuffer(file)
@@ -112,9 +112,12 @@ func main() {
 	}
 	// TODO: add ability to count unique entries
 
-	// TODO: pretty
-	//output, _ := json.Marshal(container)
-	output, _ := json.MarshalIndent(container, "", "    ")
+	var output []byte
+	if *prettyPtr {
+		output, _ = json.MarshalIndent(container, "", "    ")
+	} else {
+		output, _ = json.Marshal(container)
+	}
 
 	ioutil.WriteFile(*destFilePtr, output, 0644)
 }
