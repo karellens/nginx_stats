@@ -36,8 +36,9 @@ func retrieveMatches(line string, regExp *regexp.Regexp) (map[string]string, err
 }
 
 func main() {
-	// Available for retrieve: count_*, ip, date, datetime, method, uri, query, statuscode, bytessent, refferer, useragent.
-	// You can combine the above fields with `+` to calculate the number of unique entries
+	// Available for retrieve: ip, date, datetime, method, uri, query, statuscode, bytessent, refferer, useragent.
+	// You can combine the above fields with `+` to calculate the number of occurrences of unique combinations
+	// Specify `=` before the combination if you want to display only the number of unique occurrences found
 	sourceFilePtr := flag.String("source", "nginx-access.log", "source nginx log file")
 	destFilePtr := flag.String("destination", "urls.json", "destination json results file contains grouped top locations")
 	prettyPtr := flag.Bool("pretty", false, "Pretty JSON output")
@@ -56,6 +57,10 @@ func main() {
 	reInsOcc := regexp.MustCompile(insignificantOccurrences)
 
 	container := make(map[string]map[string]map[string]int)
+
+	var clean_field string
+	var field_value string
+	var combined_fields []string
 
 	for {
 		line, err := buf.ReadString('\n')
@@ -77,10 +82,14 @@ func main() {
 			date_str = date.Format("2006-01-02")
 
 			for _, field := range retrieveFields {
-				var field_value string
 
 				if strings.Contains(field, "+") {
-					combined_fields := strings.Split(field, "+")
+					if strings.HasPrefix(field, "=") {
+						clean_field = field[1:]
+					} else {
+						clean_field = field
+					}
+					combined_fields = strings.Split(clean_field, "+")
 					var unpacked_field_value string
 
 					for _, cf := range combined_fields {
@@ -110,7 +119,16 @@ func main() {
 			}
 		}
 	}
-	// TODO: add ability to count unique entries
+
+	for _, field := range retrieveFields {
+		if strings.HasPrefix(field, "=") {
+			for _, day_block := range container {
+				temp := make(map[string]int)
+				temp["total"] = len(day_block[field])
+				day_block[field] = temp
+			}
+		}
+	}
 
 	var output []byte
 	if *prettyPtr {
