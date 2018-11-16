@@ -35,12 +35,18 @@ func retrieveMatches(line string, regExp *regexp.Regexp) (map[string]string, err
 	return matches, err
 }
 
+func inTimeSpan(start, end, check time.Time) bool {
+	return check.After(start) && check.Before(end)
+}
+
 func main() {
 	// Available for retrieve: ip, date, datetime, method, uri, query, statuscode, bytessent, refferer, useragent.
 	// You can combine the above fields with `+` to calculate the number of occurrences of unique combinations
 	// Specify `=` before the combination if you want to display only the number of unique occurrences found
 	sourceFilePtr := flag.String("source", "nginx-access.log", "source nginx log file")
 	destFilePtr := flag.String("destination", "urls.json", "destination json results file contains grouped top locations")
+	fromDatePtr := flag.String("from", "", "from date")
+	toDatePtr := flag.String("to", "", "to date")
 	prettyPtr := flag.Bool("pretty", false, "Pretty JSON output")
 	retrievePtr := flag.String("get", "", "what fields to retrieve")
 	flag.Parse()
@@ -48,6 +54,15 @@ func main() {
 
 	file, _ := ioutil.ReadFile(*sourceFilePtr)
 	buf := bytes.NewBuffer(file)
+
+	fromDate, _ := time.Parse("2006-01-02", *fromDatePtr)
+	var toDate time.Time
+	if len(*toDatePtr) == 0 {
+		toDate = time.Now()
+	} else {
+		toDate, _ = time.Parse("2006-01-02", *toDatePtr)
+	}
+
 	// TODO: split datetime on date and time
 	sourceLinePattern := `(?P<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}) - - \[(?P<datetime>\d{2}\/[A-Za-z]{3}\/\d{4}:\d{2}:\d{2}:\d{2} (\+|\-)\d{4})\] (("(?P<method>GET|POST|HEAD) )(?P<uri>.+?)(?P<query>\?.*)? (HTTP\/\d\.\d")) (?P<statuscode>\d{3}) (?P<bytessent>\d+) (["](?P<refferer>(\-)|(.*))["]) (["](?P<useragent>.+)["])`
 	re := regexp.MustCompile(sourceLinePattern)
@@ -75,10 +90,14 @@ func main() {
 			continue
 		}
 
+		date_str := strings.Split(matches["datetime"], ":")[0]
+		date, _ := time.Parse("02/Jan/2006", date_str)
+		if !inTimeSpan(fromDate, toDate, date) {
+			continue
+		}
+
 		// match only GET except insignificantOccurrences
 		if matches["method"] == "GET" && !reInsOcc.MatchString(matches["uri"]) {
-			date_str := strings.Split(matches["datetime"], ":")[0]
-			date, _ := time.Parse("02/Jan/2006", date_str)
 			date_str = date.Format("2006-01-02")
 
 			for _, field := range retrieveFields {
